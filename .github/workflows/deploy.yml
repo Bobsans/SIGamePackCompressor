@@ -37,7 +37,7 @@ jobs:
         run: |
           mkdir -p build/web
           cp -r app/dist/. build/web/
-          cp -r main.py config.py compress build/
+          cp -r main.py config.py compress requirements.txt build/
 
       - name: Deploy
         uses: marcodallasanta/ssh-scp-deploy@v1.2.0
@@ -57,6 +57,5 @@ jobs:
             cd "$OUT" || exit
             source "$OUT/.venv/bin/activate"
             pip install -r requirements.txt
-            rm -r "$OUT/.scripts"
             ${{ vars.POST_UPLOAD_COMMAND }}
           ssh_options: -o StrictHostKeyChecking=no
