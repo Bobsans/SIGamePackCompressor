@@ -1,0 +1,17 @@
+### Compress
+POST http://127.0.0.1:8000/compress?token=123
+Accept: application/json
+Content-Type: multipart/form-data; boundary="xx-boundary-xx"
+
+--xx-boundary-xx
+Content-Disposition: form-data; name="file"; filename="pack.siq"
+Content-Type: application/octet-stream
+
+< D:\WORK\SIGame\400.siq
+
+--xx-boundary-xx--
+
+### WS
+WEBSOCKET ws://127.0.0.1:8000/ws?token=123
+
+> {% response.body.onEachMessage((message) => console.log(message)) %}

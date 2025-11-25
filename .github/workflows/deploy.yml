@@ -1,0 +1,49 @@
+name: Deploy
+
+concurrency:
+  group: production
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.x.x
+
+      - name: Install web dependencies
+        run: cd app && npm i
+
+      - name: Build static
+        run: |
+          cd app
+          sed -i -- 's|process.env.API_SERVER_URL|"${{ vars.API_SERVER_URL }}"|g' vite.config.ts
+          npm run build
+
+      - name: Collect
+        run: |
+          cp -r app/dist ./build/web
+          cp -r main.py config.py compress .scripts ./build/
+
+      - name: Deploy
+        uses: marcodallasanta/ssh-scp-deploy@v1.2.0
+        with:
+          local: ./build/*
+          remote: /tmp/sigpc
+          host: ${{ secrets.SSH_HOST }}
+          user: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          pre_upload: rm -rf /tmp/sigpc
+          post_upload: bash /tmp/sigpc/.scripts/post_deploy.sh "${{ vars.SSH_PATH }}" && ${{ vars.POST_UPLOAD_COMMAND }}
+          ssh_options: -o StrictHostKeyChecking=no
