@@ -49,13 +49,13 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           pre_upload: rm -rf /tmp/sigpc
           post_upload: |
-            OUT="${{ vars.SSH_PATH }}" && OUT=${OUT%/}
-            cp "$OUT/config.yaml" /tmp/sigpc/
-            rm -rf "$OUT"
-            mv /tmp/sigpc "$OUT"
-            python3.14 -m venv "$OUT/.venv"
-            cd "$OUT" || exit
-            source "$OUT/.venv/bin/activate"
-            pip install -r requirements.txt
-            ${{ vars.POST_UPLOAD_COMMAND }}
+            OUT="${{ vars.SSH_PATH }}" OUT=${OUT%/} &&\
+            cp "$OUT/config.yaml" /tmp/sigpc/ &&\
+            rm -rf "$OUT" &&\
+            mv /tmp/sigpc "$OUT" &&\
+            python3.14 -m venv "$OUT/.venv" &&\
+            (cd "$OUT" || exit) &&\
+            source "$OUT/.venv/bin/activate" &&\
+            pip install -r requirements.txt &&\
+            ${{ vars.POST_UPLOAD_COMMAND }}\
           ssh_options: -o StrictHostKeyChecking=no
