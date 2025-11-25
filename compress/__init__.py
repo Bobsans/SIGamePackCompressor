@@ -34,7 +34,7 @@ def compress(path: str, out_path: str, queue: Queue):
             dest.writestr('content.xml', str(bs))
             queue.put_nowait("Write content.xml...")
 
-            for file in ['Texts/sources.xml', 'Texts/authors.xml']:
+            for file in ['Texts/sources.xml', 'Texts/authors.xml', 'quality.marker']:
                 try:
                     dest.writestr(file, source.read(file))
                     queue.put_nowait(f"Write {file}...")

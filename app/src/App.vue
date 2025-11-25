@@ -40,7 +40,7 @@
   watch(() => state.file, (nv, ov) => {
     if (nv && nv !== ov) {
       state.log.push("Uploading...");
-      wsListen("ws", state.token, (data) => {
+      wsListen(state.token, (data) => {
         console.log(data);
         if (data.info) {
           state.info = data.info;
