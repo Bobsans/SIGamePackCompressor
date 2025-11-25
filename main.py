@@ -1,14 +1,17 @@
 import logging
 import os
+import threading
 from asyncio import Queue
 from typing import Annotated
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, UploadFile
+from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocket
 
 import compress
 from config import config
+from data import DONE_MARKER
 
 logger = logging.getLogger(__name__)
 app = FastAPI()
@@ -16,6 +19,7 @@ app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 queues = {}
+lock = threading.Lock()
 
 
 @app.post("/compress")
@@ -52,15 +56,17 @@ async def websocket_endpoint(*, websocket: WebSocket, token: Annotated[str | Non
     queue = init_queue(token)
     while True:
         item = await queue.get()
-        if item == 'DONE':
-            if token in queues:
-                del queues[token]
+        if item == DONE_MARKER:
+            with lock:
+                if token in queues:
+                    del queues[token]
             await websocket.close()
             break
-        await websocket.send_json(item)
+        await websocket.send_json(item.model_dump())
 
 
-def init_queue(token: str) -> Queue:
-    if token not in queues:
-        queues[token] = Queue()
-    return queues[token]
+def init_queue(token: str) -> Queue[BaseModel]:
+    with lock:
+        if token not in queues:
+            queues[token] = Queue()
+        return queues[token]

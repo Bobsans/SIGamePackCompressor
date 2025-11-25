@@ -1,4 +1,5 @@
 import axios, { type AxiosRequestConfig } from "axios";
+import type { EntryType } from "@/types";
 
 export const API_URL = "<![API_SERVER_URL]!>";
 
@@ -13,7 +14,7 @@ export const compress = (file: File, config: AxiosRequestConfig = {}) => {
 };
 
 
-export const wsListen = (token: string, action: (data: any) => any) => {
+export const wsListen = (token: string, action: (data: EntryType) => any) => {
   const ws = new WebSocket(makeUrl(`ws?token=${token}`).replace(/^http/, "ws"));
   ws.addEventListener("message", (e) => action(JSON.parse(e.data)));
 };

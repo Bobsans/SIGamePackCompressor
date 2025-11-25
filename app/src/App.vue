@@ -16,6 +16,7 @@
   import DropZone from "@/components/DropZone.vue";
   import ProgressBar from "@/components/ProgressBar.vue";
   import { compress, wsListen } from "@/api.ts";
+  import type { PackInfoSchema } from "@/types.ts";
 
   const state = reactive<{
     token: string,
@@ -23,38 +24,38 @@
     log: string[],
     progress: number,
     total: number,
-    info: {
-      items: number,
-      size: number,
-      version: number
-    }
+    info: Omit<PackInfoSchema, "type">
   }>({
     token: "",
     file: null,
     log: [],
     progress: 0,
     total: 100,
-    info: { items: 0, size: 0, version: 0 }
+    info: { items_count: 0, size: 0, version: 0 }
   });
 
   watch(() => state.file, (nv, ov) => {
     if (nv && nv !== ov) {
       state.log.push("Uploading...");
+
       wsListen(state.token, (data) => {
         console.log(data);
-        if (data.info) {
-          state.info = data.info;
-          state.total = data.info.items;
-          state.log.unshift(`Package info: ${data.info.items} items, ${data.info.size} bytes, version ${data.info.version}`);
-        } else if (data.url) {
-          //window.open(data.url, "_blank");
-        } else if (data.error) {
-          state.log.unshift(data.error);
-        } else {
-          state.log.unshift(data);
-          state.progress++;
+        if (data) {
+          if (data.type === "log") {
+            state.log.unshift(data.content);
+            state.progress++;
+          } else if (data.type === "error") {
+            state.log.unshift(data.error);
+          } else if (data.type === "info") {
+            state.info = data;
+            state.total = data.items_count;
+            state.log.unshift(`Package info: ${data.items_count} items, ${data.size} bytes, version ${data.version}`);
+          } else if (data.type === "result") {
+            window.open(data.url, "_blank");
+          }
         }
       });
+
       compress(state.file!, {
         params: { token: state.token },
         onUploadProgress: (e) => {
