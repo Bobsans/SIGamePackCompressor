@@ -35,14 +35,14 @@ jobs:
 
       - name: Collect
         run: |
-          mkdir -p ./build/web
-          cp -r app/dist ./build/web
-          cp -r main.py config.py compress .scripts ./build/
+          mkdir -p build/web
+          cp -r app/dist/. build/web/
+          cp -r main.py config.py compress .scripts build/
 
       - name: Deploy
         uses: marcodallasanta/ssh-scp-deploy@v1.2.0
         with:
-          local: ./build/*
+          local: build/*
           remote: /tmp/sigpc
           host: ${{ secrets.SSH_HOST }}
           user: ${{ secrets.SSH_USER }}
