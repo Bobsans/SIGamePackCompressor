@@ -25,7 +25,7 @@ jobs:
           cache-dependency-path: app/package-lock.json
 
       - name: Install web dependencies
-        run: cd app && npm i
+        run: cd app && npm ci
 
       - name: Build static
         run: |
@@ -35,7 +35,7 @@ jobs:
 
       - name: Collect
         run: |
-          mkdir -R ./build/web
+          mkdir -p ./build/web
           cp -r app/dist ./build/web
           cp -r main.py config.py compress .scripts ./build/
 
