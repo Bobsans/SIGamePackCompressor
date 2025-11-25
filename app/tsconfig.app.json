@@ -10,8 +10,8 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["src/*"],
-      "@theme/*": ["src/@assets/style/*"]
+      "@/*": ["./src/*"],
+      "@theme/*": ["./src/@assets/style/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
