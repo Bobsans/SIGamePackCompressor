@@ -28,7 +28,7 @@ jobs:
       - name: Build static
         run: |
           cd app
-          sed -i -- 's|process.env.API_SERVER_URL|"${{ vars.API_SERVER_URL }}"|g' vite.config.ts
+          sed -i -- 's|API_SERVER_URL:.*$|API_SERVER_URL: "${{ vars.API_SERVER_URL }}",|g' vite.config.ts
           npm run build
 
       - name: Collect
