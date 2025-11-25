@@ -37,7 +37,7 @@ jobs:
         run: |
           mkdir -p build/web
           cp -r app/dist/. build/web/
-          cp -r main.py config.py compress .scripts build/
+          cp -r main.py config.py compress build/
 
       - name: Deploy
         uses: marcodallasanta/ssh-scp-deploy@v1.2.0
@@ -48,5 +48,15 @@ jobs:
           user: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           pre_upload: rm -rf /tmp/sigpc
-          post_upload: bash /tmp/sigpc/.scripts/post_deploy.sh "${{ vars.SSH_PATH }}" && ${{ vars.POST_UPLOAD_COMMAND }}
+          post_upload: |
+            OUT="${{ vars.SSH_PATH }}" && OUT=${OUT%/}
+            cp "$OUT/config.yaml" /tmp/sigpc/
+            rm -rf "$OUT"
+            mv /tmp/sigpc "$OUT"
+            python3.14 -m venv "$OUT/.venv"
+            cd "$OUT" || exit
+            source "$OUT/.venv/bin/activate"
+            pip install -r requirements.txt
+            rm -r "$OUT/.scripts"
+            ${{ vars.POST_UPLOAD_COMMAND }}
           ssh_options: -o StrictHostKeyChecking=no
