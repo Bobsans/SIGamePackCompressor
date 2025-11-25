@@ -24,9 +24,6 @@ async def compress_pack(
     file: UploadFile = File(),
     token: str = Query()
 ):
-    if not os.path.exists(config.storage_path):
-        os.makedirs(config.storage_path, exist_ok=True)
-
     try:
         name, ext = os.path.splitext(file.filename)
         file_path = os.path.join(config.storage_path, f'{name}.siq')
