@@ -21,6 +21,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22.x.x
+          cache: 'npm'
 
       - name: Install web dependencies
         run: cd app && npm i
@@ -33,6 +34,7 @@ jobs:
 
       - name: Collect
         run: |
+          mkdir -R ./build/web
           cp -r app/dist ./build/web
           cp -r main.py config.py compress .scripts ./build/
 
