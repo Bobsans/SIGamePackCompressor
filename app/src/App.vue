@@ -17,6 +17,7 @@
   import ProgressBar from "@/components/ProgressBar.vue";
   import { compress, wsListen } from "@/api.ts";
   import type { PackInfoSchema } from "@/types.ts";
+  import type { AxiosError } from "axios";
 
   const state = reactive<{
     token: string,
@@ -65,6 +66,9 @@
         }
       }).then((response) => {
         console.log(response);
+      }).catch((error: AxiosError) => {
+        console.error(error);
+        state.log.unshift(`Error: ${error.message}`)
       });
     }
   });

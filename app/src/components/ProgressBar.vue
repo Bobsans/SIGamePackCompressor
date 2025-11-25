@@ -1,6 +1,6 @@
 <template>
   <div class="progress-bar">
-    <div class="progress-bar-track" :style="{width: `${progress * 100}%`}"/>
+    <div class="progress-bar-track" :style="{width: `${progress}%`}"/>
   </div>
 </template>
 
@@ -12,7 +12,7 @@
     value: number,
   }>();
 
-  const progress = computed(() => props.value / props.max);
+  const progress = computed(() => (props.value * 100) / props.max);
 </script>
 
 <style lang="scss">
