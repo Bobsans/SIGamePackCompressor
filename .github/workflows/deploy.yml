@@ -15,28 +15,34 @@ jobs:
     environment: production
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
           node-version: 22.x.x
           cache: 'npm'
           cache-dependency-path: app/package-lock.json
 
-      - run: cd app && npm ci
+      - name: Install App dependencies
+        run: cd app && npm ci
 
-      - run: |
+      - name: Build App
+        run: |
           cd app
           sed -i -- 's|API_SERVER_URL:.*$|API_SERVER_URL: "${{ vars.API_SERVER_URL }}",|g' vite.config.ts
           npm run build
 
-      - run: |
+      - name: Collect artifact
+        run: |
           mkdir -p build/web
           rm -r api/.gitignore
           cp -r app/dist/. build/web/
           cp -r api/. build/
 
-      - uses: marcodallasanta/ssh-scp-deploy@v1.2.0
+      - name: Upload artifact
+        uses: marcodallasanta/ssh-scp-deploy@v1.2.0
         with:
           local: build/*
           remote: /tmp/sigpc
@@ -46,7 +52,8 @@ jobs:
           pre_upload: rm -rf /tmp/sigpc
           ssh_options: -o StrictHostKeyChecking=no
 
-      - uses: appleboy/ssh-action@v1
+      - name: Post deploy
+        uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
