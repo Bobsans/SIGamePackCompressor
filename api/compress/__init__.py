@@ -4,8 +4,8 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import bs4
 
-from api.compress.ops import v4, v5
-from api.data import DONE_MARKER, ErrorSchema, LogEntrySchema, OptimizeResultSchema, PackInfoSchema
+from compress.ops import v4, v5
+from data import DONE_MARKER, ErrorSchema, LogEntrySchema, OptimizeResultSchema, PackInfoSchema
 
 
 def compress(path: Path, out_path: Path, queue: Queue):
