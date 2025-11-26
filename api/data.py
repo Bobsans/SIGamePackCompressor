@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-DONE_MARKER = object()
+DONE_MARKER = 0xFFFFFF
 
 
 class PackInfoSchema(BaseModel):

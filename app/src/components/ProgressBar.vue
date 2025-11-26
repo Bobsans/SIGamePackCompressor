@@ -19,6 +19,7 @@
   @use "@theme/vars";
 
   .progress-bar {
+    position: relative;
     height: 20px;
     border-radius: 5px;
     background: vars.$color-lavander;

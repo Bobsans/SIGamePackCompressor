@@ -1,32 +1,34 @@
-import os.path
 from asyncio import Queue
-from zipfile import ZipFile
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import bs4
 
-from compress.ops import v4, v5
-from data import DONE_MARKER, ErrorSchema, LogEntrySchema, OptimizeResultSchema, PackInfoSchema
+from api.compress.ops import v4, v5
+from api.data import DONE_MARKER, ErrorSchema, LogEntrySchema, OptimizeResultSchema, PackInfoSchema
 
 
-def compress(path: str, out_path: str, queue: Queue):
+def compress(path: Path, out_path: Path, queue: Queue):
+    file_size = path.stat().st_size
+
     with ZipFile(path, 'r') as source:
-        with ZipFile(out_path, 'w') as dest:
+        with ZipFile(out_path, 'w', ZIP_DEFLATED, compresslevel=9) as dest:
             with source.open('content.xml', 'r') as cf:
                 bs = bs4.BeautifulSoup(cf, 'lxml')
 
             version = int(bs.find('package').get('version'))
-            if version not in [4, 5]:
-                queue.put_nowait(ErrorSchema(error=f'Version {version} not supported'))
+            ops = {4: v4, 5: v5}.get(version, None)
+
+            if ops is None:
+                queue.put_nowait(ErrorSchema(error=f'Pack version {version} not supported'))
                 queue.put_nowait(DONE_MARKER)
                 return
 
             queue.put_nowait(PackInfoSchema(
-                size=sum(file.file_size for file in source.infolist()),
+                size=file_size,
                 version=version,
-                items_count=len(source.infolist()),
+                items_count=ops.get_optimizable_items_count(source),
             ))
-
-            ops = v4 if version == 4 else v5
 
             ops.optimize_files(source, dest, bs, queue)
 
@@ -40,5 +42,5 @@ def compress(path: str, out_path: str, queue: Queue):
                 except:
                     pass
 
-    queue.put_nowait(OptimizeResultSchema(url=f'/download/{os.path.basename(out_path)}'))
+    queue.put_nowait(OptimizeResultSchema(url=f'/download/{out_path.name}'))
     queue.put_nowait(DONE_MARKER)

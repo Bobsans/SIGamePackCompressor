@@ -23,18 +23,14 @@ lock = threading.Lock()
 
 
 @app.post("/compress")
-async def compress_pack(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(),
-    token: str = Query()
-):
+async def compress_pack(background_tasks: BackgroundTasks, file: UploadFile = File(), token: str = Query()):
     try:
         name, ext = os.path.splitext(file.filename)
-        file_path = os.path.join(config.storage_path, f'{name}.siq')
+        file_path = config.storage_path / f'{name}.siq'
         out_file_name = f'{name}-compressed.siq'
-        out_file_path = os.path.join(config.storage_path, out_file_name)
+        out_file_path = config.storage_path / out_file_name
 
-        with open(file_path, "wb") as f:
+        with file_path.open("wb") as f:
             while chunk := await file.read(1024 * 1024):
                 f.write(chunk)
 

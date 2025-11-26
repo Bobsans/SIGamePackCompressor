@@ -66,6 +66,7 @@
         }
       }).then((response) => {
         console.log(response);
+        state.progress = 0;
       }).catch((error: AxiosError) => {
         console.error(error);
         state.log.unshift(`Error: ${error.message}`)

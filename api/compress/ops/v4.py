@@ -6,8 +6,12 @@ from zipfile import ZipFile
 
 from bs4 import BeautifulSoup
 
-from compress.ops import format_size, optimize_audio, optimize_image, optimize_video
-from data import LogEntrySchema
+from api.compress.ops import format_size, optimize_audio, optimize_image, optimize_video
+from api.data import LogEntrySchema
+
+
+def get_optimizable_items_count(source: ZipFile) -> int:
+    return len([file for file in source.infolist() if file.filename.startswith('Images/') or file.filename.startswith('Video/') or file.filename.startswith('Audio/')])
 
 
 def optimize_files(source: ZipFile, dest: ZipFile, bs: BeautifulSoup, queue: Queue):
@@ -25,9 +29,9 @@ def optimize_files(source: ZipFile, dest: ZipFile, bs: BeautifulSoup, queue: Que
         except Exception as e:
             queue.put_nowait(LogEntrySchema(content=f'Logo optimization error! {e}'))
 
-    images = bs.find_all('item', attrs={'type': 'image'})
-    videos = bs.find_all('item', attrs={'type': 'video'})
-    audios = bs.find_all('item', attrs={'type': 'audio'})
+    images = bs.find_all('atom', attrs={'type': 'image'})
+    videos = bs.find_all('atom', attrs={'type': 'video'})
+    audios = bs.find_all('atom', attrs={'type': 'voice'})
 
     for tag in [*images, *videos, *audios]:
         type = tag.get('type')
@@ -40,7 +44,7 @@ def optimize_files(source: ZipFile, dest: ZipFile, bs: BeautifulSoup, queue: Que
                 ext, content = optimize_image(ext, original_content)
                 hashname = hashlib.md5(content).hexdigest()
                 dest.writestr(f'Images/{hashname}{ext}', content)
-                tag.string.replace_with(f'{hashname}{ext}')
+                tag.string.replace_with(f'@{hashname}{ext}')
                 queue.put_nowait(LogEntrySchema(content=f'Image {name}{ext} [{format_size(len(original_content))}] -> {hashname}{ext} [{format_size(len(content))}]'))
             except Exception as e:
                 queue.put_nowait(LogEntrySchema(content=f'Image optimization error! {e}'))
@@ -49,18 +53,18 @@ def optimize_files(source: ZipFile, dest: ZipFile, bs: BeautifulSoup, queue: Que
                 original_content = get_file_content(source, filename, type)
                 ext, content = optimize_video(ext, original_content)
                 hashname = hashlib.md5(content).hexdigest()
-                dest.writestr(f'Video/{name}{ext}', content)
-                tag.string.replace_with(f'{name}{ext}')
+                dest.writestr(f'Video/{hashname}{ext}', content)
+                tag.string.replace_with(f'@{hashname}{ext}')
                 queue.put_nowait(LogEntrySchema(content=f'Video {name}{ext} [{format_size(len(original_content))}] -> {hashname}{ext} [{format_size(len(content))}]'))
             except Exception as e:
                 queue.put_nowait(LogEntrySchema(content=f'Video optimization error! {e}'))
-        elif type == 'audio':
+        elif type == 'voice':
             try:
                 original_content = get_file_content(source, filename, type)
                 ext, content = optimize_audio(ext, original_content)
                 hashname = hashlib.md5(content).hexdigest()
-                dest.writestr(f'Audio/{name}{ext}', content)
-                tag.string.replace_with(f'{name}{ext}')
+                dest.writestr(f'Audio/{hashname}{ext}', content)
+                tag.string.replace_with(f'@{hashname}{ext}')
                 queue.put_nowait(LogEntrySchema(content=f'Audio {name}{ext} [{format_size(len(original_content))}] -> {hashname}{ext} [{format_size(len(content))}]'))
             except Exception as e:
                 queue.put_nowait(LogEntrySchema(content=f'Audio optimization error! {e}'))
@@ -74,7 +78,7 @@ def get_file_content(source: ZipFile, path: str, type: str) -> bytes:
         path = f'Images/{path}'
     elif type == 'video':
         path = f'Video/{path}'
-    elif type == 'audio':
+    elif type == 'voice':
         path = f'Audio/{path}'
 
     with source.open(path, 'r') as file:
