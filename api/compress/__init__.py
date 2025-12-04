@@ -14,7 +14,7 @@ def compress(path: Path, out_path: Path, queue: Queue):
     with ZipFile(path, 'r') as source:
         with ZipFile(out_path, 'w', ZIP_DEFLATED, compresslevel=9) as dest:
             with source.open('content.xml', 'r') as cf:
-                bs = bs4.BeautifulSoup(cf, 'lxml')
+                bs = bs4.BeautifulSoup(cf, 'xml')
 
             version = int(bs.find('package').get('version'))
             ops = {4: v4, 5: v5}.get(version, None)
