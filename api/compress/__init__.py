@@ -1,3 +1,4 @@
+import logging
 from asyncio import Queue
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -7,8 +8,10 @@ import bs4
 from compress.ops import v4, v5
 from data import DONE_MARKER, ErrorSchema, LogEntrySchema, OptimizeResultSchema, PackInfoSchema
 
+logger = logging.getLogger(__name__)
 
-def compress(path: Path, out_path: Path, queue: Queue):
+
+def compress(file_hash: str, path: Path, out_path: Path, queue: Queue):
     file_size = path.stat().st_size
 
     with ZipFile(path, 'r') as source:
@@ -36,11 +39,9 @@ def compress(path: Path, out_path: Path, queue: Queue):
             queue.put_nowait(LogEntrySchema(content="Write content.xml..."))
 
             for file in ['Texts/sources.xml', 'Texts/authors.xml', 'quality.marker']:
-                try:
+                if source.NameToInfo.get(file, None) is not None:
                     dest.writestr(file, source.read(file))
                     queue.put_nowait(LogEntrySchema(content=f"Write {file}..."))
-                except:
-                    pass
 
-    queue.put_nowait(OptimizeResultSchema(url=f'/download/{out_path.name}'))
+    queue.put_nowait(OptimizeResultSchema(url=f'/download/{file_hash}'))
     queue.put_nowait(DONE_MARKER)

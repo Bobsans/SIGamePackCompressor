@@ -1,9 +1,10 @@
 import axios, { type AxiosRequestConfig } from "axios";
 import type { EntryType } from "@/types";
+import { urljoin } from "@/utils";
 
 export const API_URL = "<![API_SERVER_URL]!>";
 
-const makeUrl = (path: string) => `${API_URL.replace(/\/$/g, "")}/${path.replace(/^\//g, "")}`;
+const makeUrl = (path: string) => urljoin(API_URL, path);
 
 export const post = (url: string, data: any, config: AxiosRequestConfig = {}) => axios.post(makeUrl(url), data, config);
 

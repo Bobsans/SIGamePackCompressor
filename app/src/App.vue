@@ -5,7 +5,13 @@
       <div>{{ state.file.name }}</div>
       <progress-bar :max="state.total" :value="state.progress"/>
       <div class="log-panel">
-        <div v-for="(line, i) in state.log" :key="i">{{ line }}</div>
+        <div class="log-panel-content">
+          <template v-for="line in state.log" :key="line">
+            <transition-zoom-fade direction="bottom">
+              <div>{{ line }}</div>
+            </transition-zoom-fade>
+          </template>
+        </div>
       </div>
     </div>
   </main>
@@ -15,9 +21,11 @@
   import { onMounted, reactive, watch } from "vue";
   import DropZone from "@/components/DropZone.vue";
   import ProgressBar from "@/components/ProgressBar.vue";
-  import { compress, wsListen } from "@/api.ts";
-  import type { PackInfoSchema } from "@/types.ts";
+  import { API_URL, compress, wsListen } from "@/api";
+  import type { PackInfoSchema } from "@/types";
   import type { AxiosError } from "axios";
+  import TransitionZoomFade from "@/components/TransitionZoomFade.vue";
+  import { urljoin } from "@/utils";
 
   const state = reactive<{
     token: string,
@@ -40,7 +48,6 @@
       state.log.push("Uploading...");
 
       wsListen(state.token, (data) => {
-        console.log(data);
         if (data) {
           if (data.type === "log") {
             state.log.unshift(data.content);
@@ -52,7 +59,7 @@
             state.total = data.items_count;
             state.log.unshift(`Package info: ${data.items_count} items, ${data.size} bytes, version ${data.version}`);
           } else if (data.type === "result") {
-            window.open(data.url, "_blank");
+            window.open(urljoin(API_URL, data.url), "_blank");
           }
         }
       });
@@ -69,7 +76,7 @@
         state.progress = 0;
       }).catch((error: AxiosError) => {
         console.error(error);
-        state.log.unshift(`Error: ${error.message}`)
+        state.log.unshift(`Error: ${error.message}`);
       });
     }
   });
@@ -100,10 +107,50 @@
     }
 
     .log-panel {
-      overflow: auto scroll;
-      border: 1px solid rgba(vars.$color-ink-black, 0.1);
-      height: 200px;
-      border-radius: 5px;
+      position: relative;
+      overflow: hidden;
+      height: 400px;
+
+      &-content {
+        position: relative;
+        overflow: auto scroll;
+        height: 100%;
+
+        &::-webkit-scrollbar-corner {
+          background: vars.$color-navy;
+          border-radius: 3px;
+        }
+
+        &::-webkit-scrollbar {
+          background: transparent;
+          width: 5px;
+          height: 5px;
+
+          &-thumb {
+            background: vars.$color-navy;
+            border-radius: 3px;
+          }
+        }
+
+        &::after {
+          content: "";
+          display: block;
+          height: 150px;
+        }
+
+      }
+
+      &::after {
+        content: "";
+        display: block;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 5px;
+        height: 150px;
+        background: linear-gradient(180deg, transparent, vars.$color-lavander 90%);
+        pointer-events: none;
+      }
     }
   }
 </style>

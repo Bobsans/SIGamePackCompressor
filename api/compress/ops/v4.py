@@ -6,8 +6,9 @@ from zipfile import ZipFile
 
 from bs4 import BeautifulSoup
 
-from compress.ops import format_size, optimize_audio, optimize_image, optimize_video
+from compress.ops import optimize_audio, optimize_image, optimize_video
 from data import LogEntrySchema
+from utils import format_size
 
 
 def get_optimizable_items_count(source: ZipFile) -> int:

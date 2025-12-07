@@ -6,3 +6,5 @@ export const randomString = (length: number) => {
   }
   return result;
 };
+
+export const urljoin = (...args: string[]) => args.map(it => it.replace(/^\/|\/$/g, "")).join("/");

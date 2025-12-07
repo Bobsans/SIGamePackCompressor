@@ -1,11 +1,23 @@
+import logging
 import math
 import subprocess
+from enum import Enum
 from io import BytesIO
 
 from PIL import Image
 
+logger = logging.getLogger(__name__)
+
+
+class FileType(Enum):
+    IMAGE = 'image'
+    VIDEO = 'video'
+    AUDIO = 'audio'
+
 
 def optimize_image(ext: str, content: bytes) -> tuple[str, bytes]:
+    ext = ext.lower()
+
     with Image.open(BytesIO(content)) as img:
         w, h = img.size
         if w > 800 or h > 800:
@@ -20,32 +32,53 @@ def optimize_image(ext: str, content: bytes) -> tuple[str, bytes]:
         buff = BytesIO()
         img.save(buff, fmt, optimize=True)
         buff.seek(0)
-        return ext, buff.read()
+    return ext, buff.read()
 
 
 def optimize_video(ext: str, content: bytes) -> tuple[str, bytes]:
-    cmd = ['ffmpeg', '-i', 'pipe:', '-f', 'mp4', '-movflags', 'isml+frag_keyframe', '-c:v', 'libx264', '-c:a', 'aac', '-vf', 'scale=trunc(oh*a/2)*2:664', '-crf', '28', '-loglevel', 'error', 'pipe:']
+    cmd = [
+        'ffmpeg',
+        '-i', 'pipe:',
+        '-f', 'mp4',
+        '-movflags', 'isml+frag_keyframe+empty_moov+default_base_moof',
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
+        '-b:a', '64k',
+        '-preset', 'slow',
+        '-profile:v', 'main',
+        '-vf', 'scale=1024:664:force_original_aspect_ratio=decrease,setsar=1,scale=trunc(iw/2)*2:trunc(ih/2)*2',
+        '-crf', '28',
+        '-loglevel', 'error',
+        'pipe:'
+    ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=10 ** 8)
-    out = proc.communicate(input=content)
-    proc.wait()
-    if not out[1]:
-        return '.mp4', out[0]
+    try:
+        (out, err) = proc.communicate(input=content, timeout=300)
+        if proc.returncode == 0 and out:
+            return '.mp4', out
+    except Exception as e:
+        logger.exception(e, "Failed to convert video")
+        proc.kill()
+
     return ext, content
 
 
 def optimize_audio(ext: str, content: bytes) -> tuple[str, bytes]:
-    cmd = ['ffmpeg', '-i', 'pipe:', '-f', 'mp3', '-b:a', '96k', '-loglevel', 'error', 'pipe:']
+    cmd = [
+        'ffmpeg',
+        '-i', 'pipe:',
+        '-f', 'mp3',
+        '-b:a', '64k',
+        '-loglevel', 'error',
+        'pipe:'
+    ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=10 ** 8)
-    out = proc.communicate(input=content)
-    proc.wait()
-    if not out[1]:
-        return '.mp3', out[0]
+    try:
+        (out, err) = proc.communicate(input=content, timeout=300)
+        if proc.returncode == 0 and out:
+            return '.mp3', out
+    except Exception as e:
+        logger.exception(e, "Failed to convert audio")
+        proc.kill()
+
     return ext, content
-
-
-def format_size(size: int) -> str:
-    if size < 1024:
-        return f'{size} B'
-    if size < 1024 * 1024:
-        return f'{size / 1024:.2f} KB'
-    return f'{size / 1024 / 1024:.2f} MB'
