@@ -173,7 +173,7 @@ in the v4 sample survived conversion with equivalent question semantics.
 GitHub Actions tests native codecs, runs Go race tests and builds the frontend
 and Linux binary. The build embeds its commit SHA in `/health`.
 Repository variables: `API_SERVER_URL` (`/` for same origin),
-`GO_BACKEND_READY`, `GO_SERVICE_NAME`, `SSH_PATH`.
+`GO_SERVICE_NAME`, `SSH_PATH`.
 The production environment supplies SSH credentials.
 
 The service and reverse-proxy configuration are maintained on the server,
