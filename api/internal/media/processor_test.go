@@ -80,7 +80,11 @@ func TestNativeImageFormats(t *testing.T) {
 			input := src
 			if ext != ".png" {
 				input = filepath.Join(dir, "fixture"+ext)
-				if _, err := p.run(ctx, p.Vips, "copy", src, input); err != nil {
+				output := input
+				if ext == ".avif" {
+					output += "[compression=av1]"
+				}
+				if _, err := p.run(ctx, p.Vips, "copy", src, output); err != nil {
 					t.Fatal(err)
 				}
 			}
