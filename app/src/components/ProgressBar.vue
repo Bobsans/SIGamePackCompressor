@@ -1,34 +1,21 @@
 <template>
-  <div class="progress-bar">
-    <div class="progress-bar-track" :style="{width: `${progress}%`}"/>
+  <div
+    class="progress-bar"
+    :class="{ 'is-indeterminate': indeterminate }"
+    role="progressbar"
+    :aria-label="label"
+    :aria-valuemin="0"
+    :aria-valuemax="100"
+    :aria-valuenow="indeterminate ? undefined : progress"
+  >
+    <div class="progress-bar-track" :style="{ width: indeterminate ? '35%' : `${progress}%` }" />
   </div>
 </template>
 
 <script setup lang="ts">
   import { computed } from "vue";
-
-  const props = defineProps<{
-    max: number,
-    value: number,
-  }>();
-
-  const progress = computed(() => (props.value * 100) / props.max);
+  const props = withDefaults(defineProps<{ max: number; value: number; label?: string; indeterminate?: boolean }>(), {
+    label: "Прогресс обработки", indeterminate: false
+  });
+  const progress = computed(() => props.max > 0 ? Math.min(100, Math.max(0, Math.round(props.value * 100 / props.max))) : 0);
 </script>
-
-<style lang="scss">
-  @use "@theme/vars";
-
-  .progress-bar {
-    position: relative;
-    height: 20px;
-    border-radius: 5px;
-    background: vars.$color-lavander;
-    border: 1px solid rgba(vars.$color-ink-black, 0.1);
-    overflow: hidden;
-
-    .progress-bar-track {
-      height: 100%;
-      background: vars.$color-navy;
-    }
-  }
-</style>

@@ -1,3 +1,7 @@
 .venv/
 __pycache__/
 storage/
+config.yaml
+*.exe
+sigame-compressor
+web/

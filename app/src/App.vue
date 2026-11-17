@@ -1,188 +1,100 @@
 <template>
-  <main>
-    <drop-zone v-if="!state.file" v-model="state.file">Drop or choose file</drop-zone>
-    <div v-else class="optimize-panel">
-      <div class="pack-info">
-        <div>{{ state.file.name }}</div>
-        <div v-if="state.info" class="pack-info-data">
-          <span>Version: <b>{{ state.info.version }}</b></span>
-          <span>Size: <b>{{ formatSize(state.info.size) }}</b></span>
-          <span>Items: <b>{{ state.info.items_count }}</b></span>
-        </div>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="SIGame Pack Compressor">
+        <span class="brand-mark" aria-hidden="true"><i/><i/><i/><i/></span>
+        <span>SI<span class="brand-light"> PACK</span><small>Компрессор пакетов</small></span>
+      </a>
+      <span class="header-caption">Больше игры · меньше мегабайт</span>
+    </header>
+
+    <main>
+      <div class="page-heading">
+        <div><span class="eyebrow">Для SIGame</span><h1 ref="heading" tabindex="-1">{{ titles[stage] }}</h1><p>{{ pageDescription }}</p></div>
+        <button v-if="upload && stage === 'settings'" class="button button-secondary button-compact" type="button" :disabled="starting" @click="reset">Другой пакет <span aria-hidden="true">↗</span></button>
       </div>
-      <progress-bar :max="state.total" :value="state.progress"/>
-      <div class="log-panel">
-        <div class="log-panel-content">
-          <template v-for="entry in state.log" :key="entry.id">
-            <transition-zoom-fade direction="bottom">
-              <div v-if="entry.event === 'compressed'" class="log-entry-file">
-                <span class="info">Processed {{ entry.type.padEnd(5, "&nbsp") }} : <b>{{ entry.old_name }}</b> -> <b>{{ entry.new_name }}</b></span>
-                <span class="sizes">&nbsp;[<b>{{ formatSize(entry.old_size) }}</b> -> <b>{{ formatSize(entry.new_size) }}</b>]</span>
-              </div>
-              <div v-else-if="entry.event === 'uploading'">Uploading: {{ entry.percent }}%...</div>
-              <div v-else-if="entry.event === 'error'" class="log-entry-error">
-                <span>Error: {{ entry.error }}</span>
-                <span v-if="entry.type || entry.name || entry.size">[type: {{ entry.type }}, name: {{ entry.name }}, size: {{ formatSize(entry.size ?? 0) }}]</span>
-              </div>
-            </transition-zoom-fade>
-          </template>
-        </div>
+
+      <ol class="steps" aria-label="Этапы обработки">
+        <li v-for="(label, index) in steps" :key="label" :class="{ current: stepIndex === index, complete: stepIndex > index }" :aria-current="stepIndex === index ? 'step' : undefined">
+          <span class="step-number" aria-hidden="true">{{ stepIndex > index ? '✓' : String(index + 1).padStart(2, '0') }}</span><span>{{ label }}</span>
+        </li>
+      </ol>
+
+      <div v-if="error" class="notice notice-error" role="alert">
+        <span>{{ error }}</span>
+        <button v-if="!capabilities" class="text-button" type="button" :disabled="initializing" @click="initialize">Попробовать снова</button>
+        <button v-else class="dismiss-button" type="button" aria-label="Закрыть сообщение" @click="error = ''">×</button>
       </div>
-    </div>
-  </main>
+
+      <section v-if="initializing" class="loading-panel panel" aria-live="polite">
+        <span class="small-spinner" aria-hidden="true"/><h2>Подключаемся к серверу</h2><p>Загружаем настройки и проверяем предыдущую сессию</p>
+      </section>
+
+      <template v-else-if="stage === 'upload'">
+        <section v-if="uploading" class="uploading-panel panel" aria-live="polite">
+          <div class="file-mark small" aria-hidden="true"><span>SIQ</span></div>
+          <h2>{{ uploadProgress < 100 ? 'Загружаем пакет' : 'Изучаем содержимое' }}</h2>
+          <p class="upload-filename">{{ filename }}</p>
+          <div class="upload-progress"><div><span>{{ uploadProgress < 100 ? 'Передача файла' : 'Проверяем вопросы и медиафайлы' }}</span><b v-if="uploadProgress < 100">{{ uploadProgress }}%</b></div><progress-bar :max="100" :value="uploadProgress" :indeterminate="uploadProgress >= 100" label="Загрузка и анализ пакета"/></div>
+          <p class="field-note">Сжатие начнётся только после выбора настроек</p>
+          <button class="button button-secondary" type="button" @click="cancelUpload">Отменить загрузку</button>
+        </section>
+        <div v-else class="welcome-grid">
+          <section class="upload-panel panel" aria-label="Загрузка пакета">
+            <drop-zone :disabled="!capabilities" :max-bytes="capabilities?.max_upload_bytes ?? 0" @select="selectFile" @invalid="error = $event"/>
+          </section>
+          <aside class="welcome-aside">
+            <div class="table-motif" aria-hidden="true"><span>100</span><span>200</span><span>300</span><span>400</span><span>500</span><span class="motif-special">SI</span></div>
+            <h2>Тот же пакет<br>Меньше ожидания</h2>
+            <p>Уменьшите вес медиа перед игрой — изображения, аудио и видео в одном месте</p>
+            <ul class="welcome-points"><li>Настройки для каждого типа медиа</li><li>Обновление формата пакета до версии 5</li><li>Повторная обработка без новой загрузки</li></ul>
+          </aside>
+        </div>
+        <div v-if="!uploading" class="upload-footnote"><span aria-hidden="true">◇</span> Оригинал не изменяется — готовый пакет скачивается отдельным файлом</div>
+      </template>
+
+      <template v-else-if="upload">
+        <pack-summary :pack="upload"/>
+        <compression-settings v-if="stage === 'settings' && options && capabilities" v-model="options" :pack="upload" :capabilities="capabilities" :busy="starting" @start="start" @defaults="defaultsForPack"/>
+        <job-panel v-else-if="job" :job="job" :filename="upload.filename" :source-version="upload.analysis.version" :cancelling="cancelling" :connection-error="connectionError" @cancel="cancel" @edit="editSettings" @reset="reset" @retry="retryStatus"/>
+      </template>
+    </main>
+    <footer class="site-footer"><span>SI PACK <span class="footer-separator">/</span> Готовьте вопросы, мы займёмся размером</span><span>JPEG · PNG · GIF · WebP · AVIF</span></footer>
+  </div>
 </template>
 
 <script setup lang="ts">
-  import { onMounted, reactive, watch } from "vue";
+  import { computed, nextTick, onMounted, ref, watch } from "vue";
   import DropZone from "@/components/DropZone.vue";
   import ProgressBar from "@/components/ProgressBar.vue";
-  import { API_URL, compress, wsListen } from "@/api";
-  import type { LogEntryDataType, LogEntryUploading, PackInfoSchema } from "@/types";
-  import type { AxiosError } from "axios";
-  import TransitionZoomFade from "@/components/TransitionZoomFade.vue";
-  import { formatSize, urljoin } from "@/utils";
-
-  const state = reactive({
-    token: "",
-    file: null as File | null,
-    log: [] as LogEntryDataType[],
-    progress: 0,
-    total: 100,
-    info: null as PackInfoSchema | null
+  import PackSummary from "@/components/PackSummary.vue";
+  import CompressionSettings from "@/components/CompressionSettings.vue";
+  import JobPanel from "@/components/JobPanel.vue";
+  import { useCompression } from "@/composables/useCompression";
+  const {
+    capabilities, upload, job, options, stage, initializing, uploading, starting, cancelling,
+    uploadProgress, filename, error, connectionError, initialize, selectFile, cancelUpload,
+    start, cancel, editSettings, reset, retryStatus, defaultsForPack
+  } = useCompression();
+  const heading = ref<HTMLHeadingElement>();
+  const steps = ["Загрузка", "Настройки", "Сжатие", "Результат"];
+  const stepIndex = computed(() => ({ upload: 0, settings: 1, processing: 2, result: 3 })[stage.value]);
+  const titles = { upload: "Большая игра — компактный пакет", settings: "Всё готово к сжатию", processing: "Пакет в работе", result: "Результат обработки" };
+  const descriptions = {
+    upload: "Загрузите пакет, выберите настройки и скачайте облегчённую версию",
+    settings: "Проверьте состав пакета и выберите подходящий баланс размера и качества",
+    processing: "Следите за прогрессом — исходный пакет остаётся без изменений",
+    result: "Скачайте результат или попробуйте другие настройки на том же пакете"
+  };
+  const pageDescription = computed(() => {
+    if (stage.value === "result" && job.value?.status === "failed") return "Задание остановилось — проверьте подробности и попробуйте ещё раз";
+    if (stage.value === "result" && job.value?.status === "cancelled") return "Можно изменить настройки и запустить обработку заново";
+    return descriptions[stage.value];
   });
-
-  watch(() => state.file, (nv, ov) => {
-    if (nv && nv !== ov) {
-      state.log.push({ event: "uploading", percent: 0 });
-
-      wsListen(state.token, (data) => {
-        if (data) {
-          if (data.type === "log") {
-            state.log.unshift({ ...data.data, id: crypto.randomUUID() });
-            state.progress++;
-          } else if (data.type === "info") {
-            state.info = data;
-            state.total = data.items_count;
-          } else if (data.type === "result") {
-            window.open(urljoin(API_URL, data.url), "_blank");
-          }
-        }
-      });
-
-      compress(state.file!, {
-        params: { token: state.token },
-        onUploadProgress: (e) => {
-          const percentCompleted = Math.round((e.loaded * 100) / e.total!);
-          state.progress = percentCompleted;
-          (state.log[0] as LogEntryUploading).percent = percentCompleted;
-        }
-      }).then((response) => {
-        console.log(response);
-        state.progress = 0;
-      }).catch((error: AxiosError) => {
-        console.error(error);
-        state.log.unshift({ event: "error", error: error.message });
-      });
-    }
+  watch(stage, async (next, previous) => {
+    // Completing a job should not pull a reader away from the file history.
+    if (previous === "processing" && next === "result") return;
+    await nextTick(); heading.value?.focus({ preventScroll: true }); window.scrollTo({ top: 0, behavior: "instant" });
   });
-
-  onMounted(() => {
-    state.token = localStorage.getItem("token") ?? "";
-    if (!state.token) {
-      state.token = crypto.randomUUID().replace(/-/g, "");
-      localStorage.setItem("token", state.token);
-    }
-  });
+  onMounted(initialize);
 </script>
-
-<style lang="scss">
-  @use "@theme/vars";
-
-  main {
-    padding: 1.5em;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-
-    .optimize-panel {
-      width: max(80vw, 300px);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-
-      .pack-info {
-        display: flex;
-        justify-content: space-between;
-        font-size: 1.2rem;
-
-        .pack-info-data {
-          display: flex;
-          gap: 10px;
-        }
-      }
-    }
-
-    .log-panel {
-      position: relative;
-      overflow: hidden;
-      height: 400px;
-      font-family: "Consolas", "Menlo", "DejaVu Sans Mono", "Bitstream Vera Sans Mono", monospace;
-
-      &-content {
-        position: relative;
-        overflow: auto scroll;
-        height: 100%;
-
-        &::-webkit-scrollbar-corner {
-          background: vars.$color-navy;
-          border-radius: 3px;
-        }
-
-        &::-webkit-scrollbar {
-          background: transparent;
-          width: 5px;
-          height: 5px;
-
-          &-thumb {
-            background: vars.$color-navy;
-            border-radius: 3px;
-          }
-        }
-
-        &::after {
-          content: "";
-          display: block;
-          height: 150px;
-        }
-
-        .log-entry-file {
-          .info {
-            b {
-              color: vars.$color-glaucous;
-            }
-          }
-
-          .sizes {
-            color: vars.$color-ink-black;
-          }
-        }
-
-        .log-entry-error {
-          color: red;
-        }
-      }
-
-      &::after {
-        content: "";
-        display: block;
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 5px;
-        height: 150px;
-        background: linear-gradient(180deg, transparent, vars.$color-lavander 90%);
-        pointer-events: none;
-      }
-    }
-  }
-</style>

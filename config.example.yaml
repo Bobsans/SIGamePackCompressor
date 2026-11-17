@@ -1,0 +1,15 @@
+listen: 127.0.0.1:8000
+storage_path: storage
+web_path: web
+workers: 1
+queue_size: 16
+max_upload_mb: 1024
+threads_per_process: 1
+media_timeout_seconds: 300
+vips: vips
+vipsheader: vipsheader
+ffmpeg: ffmpeg
+ffprobe: ffprobe
+allowed_origins:
+  - http://localhost:5173
+  - http://127.0.0.1:5173

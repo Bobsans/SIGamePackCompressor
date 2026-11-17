@@ -1,2 +1,9 @@
 .idea
 http.http
+.tools/
+.scratch/
+/storage/
+/config.yaml
+/sigame-compressor
+/sigame-compressor.exe
+/web/

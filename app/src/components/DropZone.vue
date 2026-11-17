@@ -1,94 +1,43 @@
 <template>
-  <div
+  <button
+    type="button"
     class="drop-zone"
-    :class="{active: state.isDragOver}"
-    @click.stop="$input?.click()"
-    @drag.prevent=""
-    @dragover.prevent=""
-    @dragstart="onDragStart"
-    @dragenter="onDragStart"
-    @dragend="onDragEnd"
-    @dragleave="onDragEnd"
+    :class="{ 'is-over': dragOver }"
+    :disabled="disabled"
+    @click="input?.click()"
+    @dragover.prevent="dragOver = !disabled"
+    @dragleave.prevent="dragOver = false"
     @drop.prevent="onDrop"
   >
-    <input ref="$input" type="file" :multiple :accept @input="onSelect">
-    <slot/>
-  </div>
+    <span class="file-mark" aria-hidden="true"><span>SIQ</span><svg viewBox="0 0 24 24" fill="none"><path d="M12 17V5m0 0L7 10m5-5 5 5M5 16v4h14v-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <strong>Перетащите пакет сюда</strong>
+    <span class="drop-zone-subtitle">или нажмите, чтобы выбрать файл</span>
+    <span class="drop-zone-action">Выбрать пакет <span aria-hidden="true">↗</span></span>
+    <span class="drop-zone-meta">.siq · версии 3–5<span v-if="maxBytes"> · до {{ formatSize(maxBytes) }}</span></span>
+  </button>
+  <input ref="input" class="visually-hidden" type="file" accept=".siq" tabindex="-1" aria-label="Файл пакета" :disabled="disabled" @change="onSelect">
 </template>
 
 <script setup lang="ts">
-  import { reactive, ref } from "vue";
-
-  const props = defineProps<{
-    multiple?: boolean,
-    accept?: string
-  }>();
-
-  const emit = defineEmits<{
-    (event: "select", data: File | File[]): void
-  }>();
-
-  const $input = ref<HTMLInputElement>();
-
-  const model = defineModel<File | File[] | null>();
-
-  const state = reactive({
-    isDragOver: false
-  });
-
-  const onSelect = (e: Event) => {
-    e.preventDefault();
-    model.value = props.multiple ? [...$input.value?.files ?? []] : $input.value!.files![0];
-    if (model.value) {
-      emit("select", model.value);
-    }
-  };
-
-  const onDrop = (e: DragEvent) => {
-    onDragEnd();
-    const items = [...e.dataTransfer?.items ?? []].filter((it) => it.kind === "file");
-
-    if (items.length) {
-      $input.value!.files = e.dataTransfer?.files ?? null;
-      model.value = props.multiple ? [...e.dataTransfer?.files ?? []] : e.dataTransfer?.files[0];
-      if (model.value) {
-        emit("select", model.value);
-      }
-    }
-  };
-
-  const onDragStart = () => {
-    state.isDragOver = true;
-  };
-
-  const onDragEnd = () => {
-    state.isDragOver = false;
-  };
-</script>
-
-<style lang="scss">
-  @use "@theme/vars";
-
-  .drop-zone {
-    width: max(30vw, 300px);
-    height: 200px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px dashed gray;
-    border-radius: 10px;
-    cursor: pointer;
-    outline: 0 solid #000050;
-    transition: 0.1s ease-in-out;
-    will-change: outline-width, background-color, box-shadow;
-
-    &.active {
-      background-color: rgba(vars.$color-ink-black, 0.2);
-      box-shadow: 0 0 5px 10px rgba(vars.$color-ink-black, 0.1);
-    }
-
-    input {
-      display: none;
-    }
+  import { ref } from "vue";
+  import { formatSize } from "@/utils";
+  defineProps<{ disabled: boolean; maxBytes: number }>();
+  const emit = defineEmits<{ select: [file: File]; invalid: [message: string] }>();
+  const input = ref<HTMLInputElement>();
+  const dragOver = ref(false);
+  function choose(files: FileList | null) {
+    if (!files?.length) return;
+    if (files.length !== 1) { emit("invalid", "Загружайте по одному пакету за раз"); return; }
+    const file = files.item(0);
+    if (file) emit("select", file);
   }
-</style>
+  function onSelect() {
+    choose(input.value?.files ?? null);
+    if (input.value) input.value.value = "";
+  }
+  function onDrop(event: DragEvent) {
+    dragOver.value = false;
+    if (input.value?.disabled) return;
+    choose(event.dataTransfer?.files ?? null);
+  }
+</script>

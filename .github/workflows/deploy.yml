@@ -1,70 +1,125 @@
-name: Deploy
-
-concurrency:
-  group: production
-  cancel-in-progress: true
+name: Build, test and deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment: production
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          node-version: 22.x.x
-          cache: 'npm'
-          cache-dependency-path: app/package-lock.json
-
-      - name: Install App dependencies
-        run: cd app && npm ci
-
-      - name: Build App
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - name: Install media tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libvips-tools
+      - name: Test backend
+        working-directory: api
+        env:
+          SI_MEDIA_TESTS: '1'
         run: |
-          cd app
-          sed -i -- 's|API_SERVER_URL:.*$|API_SERVER_URL: "${{ vars.API_SERVER_URL }}",|g' vite.config.ts
+          go test -race ./...
+          go vet ./...
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Build frontend
+        working-directory: app
+        env:
+          API_SERVER_URL: ${{ vars.API_SERVER_URL }}
+        run: |
+          npm ci
           npm run build
-
-      - name: Collect artifact
+      - name: Build release
         run: |
           mkdir -p build/web
-          rm -r api/.gitignore
+          cd api
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-X main.version=${{ github.sha }}" -o ../build/sigame-compressor ./cmd/server
+          cd ..
           cp -r app/dist/. build/web/
-          cp -r api/. build/
-
-      - name: Upload artifact
-        uses: marcodallasanta/ssh-scp-deploy@v1.2.0
+          cp config.example.yaml build/
+          cp THIRD_PARTY_NOTICES.md build/
+      - uses: actions/upload-artifact@v4
         with:
-          local: build/*
-          remote: /tmp/sigpc
-          host: ${{ secrets.SSH_HOST }}
-          user: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          pre_upload: rm -rf /tmp/sigpc
-          ssh_options: -o StrictHostKeyChecking=no
+          name: sigame-compressor-linux-amd64
+          path: build/
 
-      - name: Post deploy
-        uses: appleboy/ssh-action@v1
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.GO_BACKEND_READY == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sigame-compressor-linux-amd64
+          path: build
+      - name: Upload release
+        uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          source: build/*
+          target: /tmp/sigpc-${{ github.run_id }}
+          strip_components: 1
+      - name: Activate Go release
+        uses: appleboy/ssh-action@v1
+        env:
+          GO_OUTPUT_PATH: ${{ vars.SSH_PATH }}
+          GO_SERVICE_NAME: ${{ vars.GO_SERVICE_NAME }}
+          GO_RUN_ID: ${{ github.run_id }}
+          GO_EXPECTED_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          envs: GO_OUTPUT_PATH,GO_SERVICE_NAME,GO_RUN_ID,GO_EXPECTED_SHA
           script: |
-            OUT="${{ vars.SSH_PATH }}" OUT=${OUT%/}
-            cp "$OUT/config.yaml" /tmp/sigpc/
-            rm -rf "$OUT"
-            mv /tmp/sigpc "$OUT"
-            cd "$OUT"
-            python3.14 -m venv .venv
-            source .venv/bin/activate
-            pip install -r requirements.txt
-            ${{ vars.POST_UPLOAD_COMMAND }}
+            set -eu
+            case "$GO_OUTPUT_PATH" in /*) ;; *) exit 1;; esac
+            test "$GO_OUTPUT_PATH" != /
+            test "$(readlink -f "$GO_OUTPUT_PATH")" = "$GO_OUTPUT_PATH"
+            test -n "$GO_SERVICE_NAME"
+            case "$GO_RUN_ID" in ''|*[!0-9]*) exit 1;; esac
+            command -v vips
+            command -v vipsheader
+            command -v ffmpeg
+            command -v ffprobe
+            test -f "$GO_OUTPUT_PATH/config.yaml"
+            test -d "$GO_OUTPUT_PATH/storage"
+            STAGE="/tmp/sigpc-$GO_RUN_ID"
+            test -f "$STAGE/sigame-compressor"
+            chmod +x "$STAGE/sigame-compressor"
+            test "$("$STAGE/sigame-compressor" --version)" = "$GO_EXPECTED_SHA"
+            rm -rf -- "$GO_OUTPUT_PATH/web.next"
+            mkdir -p "$GO_OUTPUT_PATH/web.next"
+            cp -r "$STAGE/web/." "$GO_OUTPUT_PATH/web.next/"
+            cp "$STAGE/sigame-compressor" "$GO_OUTPUT_PATH/sigame-compressor.next"
+            mv "$GO_OUTPUT_PATH/sigame-compressor.next" "$GO_OUTPUT_PATH/sigame-compressor"
+            rm -rf -- "$GO_OUTPUT_PATH/web"
+            mv "$GO_OUTPUT_PATH/web.next" "$GO_OUTPUT_PATH/web"
+            sudo systemctl restart "$GO_SERVICE_NAME"
+            healthy=false
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent --max-time 3 http://127.0.0.1:8066/health | grep -Fq "$GO_EXPECTED_SHA"; then healthy=true; break; fi
+              sleep 1
+            done
+            test "$healthy" = true
+            rm -rf -- "$STAGE"
